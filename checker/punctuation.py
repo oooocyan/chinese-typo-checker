@@ -23,20 +23,15 @@ class PunctuationChecker:
     def __init__(self):
         """初始化检查器"""
         # 中文标点
-        self.chinese_puncts = set("。，、；：？！""''（）【】《》—…")
+        self.chinese_puncts = set("。，、；：？！（）【】《》—…")
         # 英文标点
-        self.english_puncts = set(".,;:?!\"\"''()[]<>")
+        self.english_puncts = set(".,;:?!()[]<>")
         # 成对标点
         self.paired_puncts = {
-            """: """,
-            "「": "」",
-            "『": "』",
             "(": ")",
             "（": "）",
             "【": "】",
             "《": "》",
-            "\"": "\"",
-            "'": "'",
         }
         # 英文标点到中文标点的映射
         self.english_to_chinese = {
@@ -50,8 +45,6 @@ class PunctuationChecker:
             ")": "）",
             "[": "【",
             "]": "】",
-            "<": "《",
-            ">": "》",
         }
 
     def check(self, text: str) -> List[Issue]:
@@ -74,9 +67,6 @@ class PunctuationChecker:
 
         # 3. 连续重复标点检测
         issues.extend(self._check_repeated_punct(text))
-
-        # 4. 句末标点缺失检测
-        issues.extend(self._check_end_punct(text))
 
         return issues
 
@@ -173,34 +163,5 @@ class PunctuationChecker:
                 confidence=0.8
             )
             issues.append(issue)
-
-        return issues
-
-    def _check_end_punct(self, text: str) -> List[Issue]:
-        """检测句末标点缺失"""
-        issues = []
-
-        # 按段落检查
-        paragraphs = text.split('\n')
-
-        current_pos = 0
-        for para in paragraphs:
-            para = para.strip()
-            if para:
-                # 检查段落末尾是否有标点
-                last_char = para[-1] if para else ""
-                if last_char and last_char not in self.chinese_puncts and last_char not in self.english_puncts:
-                    # 可能缺少句末标点
-                    issue = Issue(
-                        position=current_pos + len(para) - 1,
-                        position_end=current_pos + len(para),
-                        error_text="(无)",
-                        error_type="标点",
-                        suggestion="句末缺少标点符号",
-                        confidence=0.6
-                    )
-                    issues.append(issue)
-
-            current_pos += len(para) + 1  # +1 for newline
 
         return issues
