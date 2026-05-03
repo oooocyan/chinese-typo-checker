@@ -1,0 +1,75 @@
+{
+  "剧本": {
+    "description": "以对话为主，包含舞台说明的文本格式",
+    "characteristics": [
+      "对话占比高",
+      "有舞台说明标记（如括号、方括号）",
+      "人物名称后加冒号",
+      "动作描写简洁"
+    ],
+    "check_rules": {
+      "allow_colloquialism": true,
+      "check_character_consistency": true,
+      "check_stage_directions": true,
+      "check_dialogue_format": true
+    }
+  },
+  "小说": {
+    "description": "以叙述为主，包含对话和描写的文本格式",
+    "characteristics": [
+      "叙述视角统一",
+      "对话与描写结合",
+      "段落结构完整",
+      "情节连贯"
+    ],
+    "check_rules": {
+      "allow_colloquialism": false,
+      "check_narrative_perspective": true,
+      "check_paragraph_structure": true,
+      "check_dialogue_ratio": true
+    }
+  },
+  "散文": {
+    "description": "自由灵活的文体，注重情感表达",
+    "characteristics": [
+      "形散神聚",
+      "语言优美",
+      "情感真挚",
+      "立意深远"
+    ],
+    "check_rules": {
+      "allow_colloquialism": false,
+      "check_written_style": true,
+      "check_emotional_flow": false,
+      "check_structure": false
+    }
+  },
+  "口语": {
+    "description": "日常口语表达，风格轻松自然",
+    "characteristics": [
+      "使用口语词汇",
+      "语气词丰富",
+      "句式简短",
+      "表达直接"
+    ],
+    "check_rules": {
+      "allow_colloquialism": true,
+      "strict_grammar": false,
+      "check_written_style": false
+    }
+  },
+  "书面": {
+    "description": "正式的书面表达，语法规范严谨",
+    "characteristics": [
+      "词汇规范",
+      "语法严谨",
+      "句式完整",
+      "表达正式"
+    ],
+    "check_rules": {
+      "allow_colloquialism": false,
+      "strict_grammar": true,
+      "check_written_style": true
+    }
+  }
+}
