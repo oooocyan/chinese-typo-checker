@@ -38,6 +38,8 @@ st.markdown("""
         padding: 16px;
         line-height: 2.2;
         font-size: 15px;
+        white-space: pre-wrap;
+        word-break: break-all;
     }
 
     .err {
@@ -251,33 +253,6 @@ def main():
         if k not in st.session_state:
             st.session_state[k] = v
 
-    # 处理卡片点击操作（通过URL参数）
-    params = st.query_params
-    if "adopt" in params and st.session_state.issues:
-        try:
-            issue_id = int(params["adopt"])
-            for issue in st.session_state.issues:
-                if issue.id == issue_id:
-                    st.session_state.text = st.session_state.text[:issue.position] + issue.suggestion + st.session_state.text[issue.position_end:]
-                    st.session_state.issues = [i for i in st.session_state.issues if i.id != issue_id]
-                    break
-        except (ValueError, IndexError):
-            pass
-        st.query_params.clear()
-        st.rerun()
-
-    if "ignore" in params and st.session_state.issues:
-        try:
-            issue_id = int(params["ignore"])
-            for issue in st.session_state.issues:
-                if issue.id == issue_id:
-                    issue.ignored = True
-                    break
-        except (ValueError, IndexError):
-            pass
-        st.query_params.clear()
-        st.rerun()
-
     # 顶部工具栏
     col1, col2, col3, col4, col5, col6 = st.columns([2, 1, 1, 1, 1, 1])
 
@@ -398,7 +373,7 @@ def main():
 
             st.markdown("---")
 
-            # 问题列表 - 点击卡片采纳+跳转，忽视为灰色小字
+            # 问题列表 - 卡片内操作
             for issue in st.session_state.issues:
                 if issue.ignored:
                     continue
@@ -407,11 +382,10 @@ def main():
                 ai_badge = '<span class="ai-badge">AI</span>' if issue.source == "AI" else ""
 
                 with st.container(border=True):
-                    # 卡片内容 - 点击跳转到原文错字并采纳
-                    # 忽略链接独立于卡片主体，避免嵌套<a>
+                    # 卡片信息 + 定位锚点链接
                     st.markdown(f"""
                     <div style="position:relative;">
-                    <a href="?adopt={issue.id}#err-{issue.id}" style="text-decoration:none;color:inherit;">
+                    <a href="#err-{issue.id}" style="text-decoration:none;color:inherit;">
                     <div class="issue-item" style="border-left:3px solid {color};">
                         <div class="issue-header">
                             <span class="tag" style="background:{color}20;color:{color};">{issue.error_type}</span>{ai_badge}
@@ -426,9 +400,21 @@ def main():
                         </div>
                     </div>
                     </a>
-                    <a href="?ignore={issue.id}" style="position:absolute;bottom:12px;right:12px;color:#ccc;font-size:10px;text-decoration:none;z-index:10;">忽略</a>
                     </div>
                     """, unsafe_allow_html=True)
+
+                    # 操作按钮（极简）
+                    c1, c2 = st.columns([5, 1])
+                    with c1:
+                        if st.button("采纳", key=f"adopt_{issue.id}", use_container_width=True):
+                            new_text = st.session_state.text[:issue.position] + issue.suggestion + st.session_state.text[issue.position_end:]
+                            st.session_state.text = new_text
+                            st.session_state.issues = [i for i in st.session_state.issues if i.id != issue.id]
+                            st.rerun()
+                    with c2:
+                        if st.button("忽略", key=f"ignore_{issue.id}", use_container_width=True):
+                            issue.ignored = True
+                            st.rerun()
 
             # 导出
             st.markdown("---")
