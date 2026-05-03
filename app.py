@@ -6,7 +6,6 @@ import streamlit as st
 from dataclasses import dataclass
 from typing import List, Optional
 import sys
-import html as html_mod
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -252,6 +251,33 @@ def main():
         if k not in st.session_state:
             st.session_state[k] = v
 
+    # 处理卡片点击操作（通过URL参数）
+    params = st.query_params
+    if "adopt" in params and st.session_state.issues:
+        try:
+            issue_id = int(params["adopt"])
+            for issue in st.session_state.issues:
+                if issue.id == issue_id:
+                    st.session_state.text = st.session_state.text[:issue.position] + issue.suggestion + st.session_state.text[issue.position_end:]
+                    st.session_state.issues = [i for i in st.session_state.issues if i.id != issue_id]
+                    break
+        except (ValueError, IndexError):
+            pass
+        st.query_params.clear()
+        st.rerun()
+
+    if "ignore" in params and st.session_state.issues:
+        try:
+            issue_id = int(params["ignore"])
+            for issue in st.session_state.issues:
+                if issue.id == issue_id:
+                    issue.ignored = True
+                    break
+        except (ValueError, IndexError):
+            pass
+        st.query_params.clear()
+        st.rerun()
+
     # 顶部工具栏
     col1, col2, col3, col4, col5, col6 = st.columns([2, 1, 1, 1, 1, 1])
 
@@ -318,27 +344,26 @@ def main():
             # 显示检测结果 - 使用高亮文本
             sorted_issues = sorted([i for i in st.session_state.issues if not i.ignored], key=lambda x: x.position)
 
-            # 构建高亮文本
+            # 构建高亮文本（带锚点和悬浮提示）
             html_parts = []
             last_end = 0
             for issue in sorted_issues:
                 if issue.position > last_end:
-                    html_parts.append(html_mod.escape(st.session_state.text[last_end:issue.position]))
+                    html_parts.append(st.session_state.text[last_end:issue.position])
                 color = get_color(issue.error_type)
                 type_class = issue.error_type
-                err_text = html_mod.escape(issue.error_text)
-                sugg_text = html_mod.escape(issue.suggestion)
                 html_parts.append(
-                    f'<span class="err {type_class}" style="border-bottom:2px solid {color};">{err_text}'
+                    f'<span class="err {type_class}" style="border-bottom:2px solid {color};" id="err-{issue.id}">'
+                    f'{issue.error_text}'
                     f'<span class="err-tip">'
                     f'<span class="tip-type" style="background:{color}20;color:{color};">{issue.error_type}</span><br>'
-                    f'<span class="tip-orig">{err_text}</span> → <span class="tip-sugg">{sugg_text}</span><br>'
+                    f'<span class="tip-orig">{issue.error_text}</span> → <span class="tip-sugg">{issue.suggestion}</span><br>'
                     f'<span class="tip-conf">置信度: {issue.confidence:.0%}</span>'
                     f'</span></span>'
                 )
                 last_end = issue.position_end
             if last_end < len(st.session_state.text):
-                html_parts.append(html_mod.escape(st.session_state.text[last_end:]))
+                html_parts.append(st.session_state.text[last_end:])
 
             highlighted_text = "".join(html_parts)
             st.markdown(f'<div class="editor-box">{highlighted_text}</div>', unsafe_allow_html=True)
@@ -373,7 +398,7 @@ def main():
 
             st.markdown("---")
 
-            # 问题列表 - 卡片内包含信息和按钮
+            # 问题列表 - 点击卡片采纳+跳转，忽视为灰色小字
             for issue in st.session_state.issues:
                 if issue.ignored:
                     continue
@@ -382,8 +407,11 @@ def main():
                 ai_badge = '<span class="ai-badge">AI</span>' if issue.source == "AI" else ""
 
                 with st.container(border=True):
-                    # 问题信息
+                    # 卡片内容 - 点击跳转到原文错字并采纳
+                    # 忽略链接独立于卡片主体，避免嵌套<a>
                     st.markdown(f"""
+                    <div style="position:relative;">
+                    <a href="?adopt={issue.id}#err-{issue.id}" style="text-decoration:none;color:inherit;">
                     <div class="issue-item" style="border-left:3px solid {color};">
                         <div class="issue-header">
                             <span class="tag" style="background:{color}20;color:{color};">{issue.error_type}</span>{ai_badge}
@@ -393,22 +421,14 @@ def main():
                             <span style="color:{color};text-decoration:line-through;">{issue.error_text}</span>
                             <span style="color:#27ae60;margin-left:4px;font-weight:600;">→ {issue.suggestion}</span>
                         </div>
-                        <div style="font-size:11px;color:#999;">置信度: {issue.confidence:.0%}</div>
+                        <div style="margin-top:4px;">
+                            <span style="color:#999;font-size:10px;">置信度 {issue.confidence:.0%}</span>
+                        </div>
+                    </div>
+                    </a>
+                    <a href="?ignore={issue.id}" style="position:absolute;bottom:12px;right:12px;color:#ccc;font-size:10px;text-decoration:none;z-index:10;">忽略</a>
                     </div>
                     """, unsafe_allow_html=True)
-
-                    # 按钮 - 嵌入卡片内部
-                    bc1, bc2, bc3 = st.columns([5, 1, 1])
-                    with bc1:
-                        if st.button("✓ 采纳", key=f"adopt_{issue.id}", use_container_width=True):
-                            new_text = st.session_state.text[:issue.position] + issue.suggestion + st.session_state.text[issue.position_end:]
-                            st.session_state.text = new_text
-                            st.session_state.issues = [i for i in st.session_state.issues if i.id != issue.id]
-                            st.rerun()
-                    with bc3:
-                        if st.button("✕", key=f"ignore_{issue.id}", use_container_width=True):
-                            issue.ignored = True
-                            st.rerun()
 
             # 导出
             st.markdown("---")
