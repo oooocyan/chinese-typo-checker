@@ -76,7 +76,7 @@ st.markdown("""
         z-index: 9999;
         font-size: 13px;
         line-height: 1.6;
-        pointer-events: none;
+        pointer-events: auto;
     }
     .err-tip::after {
         content: '';
@@ -111,6 +111,48 @@ st.markdown("""
         color: #999;
         font-size: 11px;
         margin-top: 4px;
+    }
+    .tip-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid #eee;
+    }
+    .tip-btn {
+        flex: 1;
+        text-align: center;
+        padding: 5px 14px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .tip-btn.adopt {
+        background: #27ae60;
+        color: #fff;
+    }
+    .tip-btn.adopt:hover {
+        background: #219a52;
+        color: #fff;
+        text-decoration: none;
+    }
+    .tip-btn.ignore {
+        background: #f5f5f5;
+        color: #999;
+    }
+    .tip-btn.ignore:hover {
+        background: #eee;
+        color: #666;
+        text-decoration: none;
+    }
+
+    .card-btn-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
     }
 
     .issue-item {
@@ -253,6 +295,32 @@ def main():
         if k not in st.session_state:
             st.session_state[k] = v
 
+    # 处理悬浮框操作（通过URL参数）
+    params = st.query_params
+    if "adopt" in params and st.session_state.issues:
+        try:
+            issue_id = int(params["adopt"])
+            for issue in st.session_state.issues:
+                if issue.id == issue_id:
+                    st.session_state.text = st.session_state.text[:issue.position] + issue.suggestion + st.session_state.text[issue.position_end:]
+                    st.session_state.issues = [i for i in st.session_state.issues if i.id != issue_id]
+                    break
+        except (ValueError, IndexError):
+            pass
+        st.query_params.clear()
+        st.rerun()
+    if "ignore" in params and st.session_state.issues:
+        try:
+            issue_id = int(params["ignore"])
+            for issue in st.session_state.issues:
+                if issue.id == issue_id:
+                    issue.ignored = True
+                    break
+        except (ValueError, IndexError):
+            pass
+        st.query_params.clear()
+        st.rerun()
+
     # 顶部工具栏
     col1, col2, col3, col4, col5, col6 = st.columns([2, 1, 1, 1, 1, 1])
 
@@ -334,6 +402,10 @@ def main():
                     f'<span class="tip-type" style="background:{color}20;color:{color};">{issue.error_type}</span><br>'
                     f'<span class="tip-orig">{issue.error_text}</span> → <span class="tip-sugg">{issue.suggestion}</span><br>'
                     f'<span class="tip-conf">置信度: {issue.confidence:.0%}</span>'
+                    f'<div class="tip-actions">'
+                    f'<a class="tip-btn adopt" href="?adopt={issue.id}">采纳</a>'
+                    f'<a class="tip-btn ignore" href="?ignore={issue.id}">忽略</a>'
+                    f'</div>'
                     f'</span></span>'
                 )
                 last_end = issue.position_end
@@ -403,16 +475,16 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # 操作按钮（极简）
-                    c1, c2 = st.columns([5, 1])
+                    # 操作按钮
+                    c1, c2, c3 = st.columns([4, 1, 1])
                     with c1:
-                        if st.button("采纳", key=f"adopt_{issue.id}", use_container_width=True):
+                        if st.button("✓ 采纳", key=f"adopt_{issue.id}", use_container_width=True):
                             new_text = st.session_state.text[:issue.position] + issue.suggestion + st.session_state.text[issue.position_end:]
                             st.session_state.text = new_text
                             st.session_state.issues = [i for i in st.session_state.issues if i.id != issue.id]
                             st.rerun()
-                    with c2:
-                        if st.button("忽略", key=f"ignore_{issue.id}", use_container_width=True):
+                    with c3:
+                        if st.button("✕ 忽略", key=f"ignore_{issue.id}", use_container_width=True):
                             issue.ignored = True
                             st.rerun()
 
