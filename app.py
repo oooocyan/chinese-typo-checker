@@ -154,6 +154,10 @@ st.markdown("""
         gap: 8px;
         margin-top: 8px;
     }
+    .tip-btn.card-btn {
+        padding: 3px 10px;
+        font-size: 10px;
+    }
 
     .issue-item {
         padding: 10px;
@@ -454,9 +458,8 @@ def main():
                 ai_badge = '<span class="ai-badge">AI</span>' if issue.source == "AI" else ""
 
                 with st.container(border=True):
-                    # 卡片信息 + 定位锚点链接
+                    # 卡片信息（点击定位）+ 操作按钮（绿色采纳/灰色忽略）
                     st.markdown(f"""
-                    <div style="position:relative;">
                     <a href="#err-{issue.id}" style="text-decoration:none;color:inherit;">
                     <div class="issue-item" style="border-left:3px solid {color};">
                         <div class="issue-header">
@@ -472,21 +475,11 @@ def main():
                         </div>
                     </div>
                     </a>
+                    <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:6px;">
+                        <a class="tip-btn adopt card-btn" href="?adopt={issue.id}">采纳</a>
+                        <a class="tip-btn ignore card-btn" href="?ignore={issue.id}">忽略</a>
                     </div>
                     """, unsafe_allow_html=True)
-
-                    # 操作按钮
-                    c1, c2, c3 = st.columns([4, 1, 1])
-                    with c1:
-                        if st.button("✓ 采纳", key=f"adopt_{issue.id}", use_container_width=True):
-                            new_text = st.session_state.text[:issue.position] + issue.suggestion + st.session_state.text[issue.position_end:]
-                            st.session_state.text = new_text
-                            st.session_state.issues = [i for i in st.session_state.issues if i.id != issue.id]
-                            st.rerun()
-                    with c3:
-                        if st.button("✕ 忽略", key=f"ignore_{issue.id}", use_container_width=True):
-                            issue.ignored = True
-                            st.rerun()
 
             # 导出
             st.markdown("---")
