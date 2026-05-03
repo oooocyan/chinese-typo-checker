@@ -216,11 +216,12 @@ def run_local_check(text: str) -> List[Issue]:
 
 def run_ai_check(text: str) -> List[Issue]:
     """AI检测"""
-    api_key = st.secrets.get("DASHSCOPE_API_KEY", "")
+    api_key = st.secrets.get("NVIDIA_API_KEY", "")
+    base_url = st.secrets.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
     if not api_key:
         return []
 
-    detector = AIDetector(api_key)
+    detector = AIDetector(api_key, base_url)
     if not detector.is_available():
         return []
 
@@ -256,14 +257,22 @@ def merge_issues(local: List[Issue], ai: List[Issue]) -> List[Issue]:
 def run_ai_polish(text: str) -> str:
     """AI润色"""
     try:
-        import dashscope
-        from dashscope import Generation
-        api_key = st.secrets.get("DASHSCOPE_API_KEY", "")
+        from openai import OpenAI
+        api_key = st.secrets.get("NVIDIA_API_KEY", "")
+        base_url = st.secrets.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
         if not api_key:
-            return "⚠️ 请配置 DASHSCOPE_API_KEY"
-        dashscope.api_key = api_key
-        r = Generation.call(model='qwen-turbo', prompt=f"请润色优化以下文本，直接输出结果：\n\n{text[:2500]}", max_tokens=3000)
-        return r.output.text if r.status_code == 200 else f"失败: {r.message}"
+            return "⚠️ 请配置 NVIDIA_API_KEY"
+        client = OpenAI(base_url=base_url, api_key=api_key)
+        r = client.chat.completions.create(
+            model="meta/llama-3.1-405b-instruct",
+            messages=[
+                {"role": "system", "content": "你是一位专业的文字编辑，擅长润色优化中文文本。"},
+                {"role": "user", "content": f"请润色优化以下文本，直接输出润色后的结果：\n\n{text[:2500]}"}
+            ],
+            temperature=0.7,
+            max_tokens=3000
+        )
+        return r.choices[0].message.content
     except Exception as e:
         return f"出错: {e}"
 
