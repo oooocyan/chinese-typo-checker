@@ -403,8 +403,9 @@ def main():
                     is_selected = st.session_state.selected_idx == idx
 
                     # 问题卡片
+                    card_class = "error-card selected" if is_selected else "error-card"
                     st.markdown(f"""
-                    <div class="error-card {'selected' if is_selected ''}" onclick="">
+                    <div class="{card_class}">
                         <div style="display:flex; align-items:center; margin-bottom:6px;">
                             <span class="error-tag" style="background:{get_issue_bgcolor(issue.error_type)};color:{color}">{issue.error_type}</span>
                             <span style="color:#666; font-size:0.85rem;">第{issue.position}字</span>
