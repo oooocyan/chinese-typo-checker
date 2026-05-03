@@ -6,6 +6,7 @@ import streamlit as st
 from dataclasses import dataclass
 from typing import List, Optional
 import sys
+import html as html_mod
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -55,15 +56,74 @@ st.markdown("""
     .err.语义 { background: linear-gradient(to bottom, transparent 60%, #e1bee7 60%); color: #7b1fa2; }
     .err.语义:hover { background: #e1bee7; }
 
-    .issue-item {
-        background: white;
-        border: 1px solid #e8e8e8;
-        border-radius: 6px;
-        padding: 10px;
-        margin-bottom: 8px;
-        border-left: 3px solid;
+    .err {
+        position: relative;
+        cursor: pointer;
     }
-    .issue-item:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .err-tip {
+        display: none;
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 12px 16px;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+        white-space: nowrap;
+        z-index: 9999;
+        font-size: 13px;
+        line-height: 1.6;
+        pointer-events: none;
+    }
+    .err-tip::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: #fff;
+    }
+    .err:hover .err-tip {
+        display: block;
+    }
+    .tip-type {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 500;
+        margin-bottom: 6px;
+    }
+    .tip-orig {
+        color: #c62828;
+        text-decoration: line-through;
+        font-weight: 500;
+    }
+    .tip-sugg {
+        color: #27ae60;
+        font-weight: 600;
+    }
+    .tip-conf {
+        color: #999;
+        font-size: 11px;
+        margin-top: 4px;
+    }
+
+    .issue-item {
+        padding: 10px;
+    }
+    .issue-item .issue-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+    .issue-item .issue-body {
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
 
     .tag {
         display: inline-block;
@@ -136,10 +196,10 @@ def run_local_check(text: str) -> List[Issue]:
 
 def run_ai_check(text: str) -> tuple:
     """AI检测"""
-    api_key = st.secrets.get("NVIDIA_API_KEY", "")
-    base_url = st.secrets.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+    api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
+    base_url = st.secrets.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
     if not api_key:
-        return [], "未配置 NVIDIA_API_KEY"
+        return [], "未配置 DEEPSEEK_API_KEY"
     detector = AIDetector(api_key, base_url)
     if not detector.is_available():
         return [], detector.get_error() or "AI初始化失败"
@@ -167,13 +227,13 @@ def merge_issues(local: List[Issue], ai: List[Issue]) -> List[Issue]:
 def run_ai_polish(text: str) -> str:
     try:
         from openai import OpenAI
-        api_key = st.secrets.get("NVIDIA_API_KEY", "")
-        base_url = st.secrets.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+        api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
+        base_url = st.secrets.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
         if not api_key:
-            return "⚠️ 请配置 NVIDIA_API_KEY"
+            return "⚠️ 请配置 DEEPSEEK_API_KEY"
         client = OpenAI(base_url=base_url, api_key=api_key)
         r = client.chat.completions.create(
-            model="meta/llama-3.1-70b-instruct",
+            model="deepseek-chat",
             messages=[
                 {"role": "system", "content": "你是专业文字编辑。"},
                 {"role": "user", "content": f"润色优化：\n{text[:2500]}"}
@@ -263,13 +323,22 @@ def main():
             last_end = 0
             for issue in sorted_issues:
                 if issue.position > last_end:
-                    html_parts.append(st.session_state.text[last_end:issue.position])
+                    html_parts.append(html_mod.escape(st.session_state.text[last_end:issue.position]))
                 color = get_color(issue.error_type)
                 type_class = issue.error_type
-                html_parts.append(f'<span class="err {type_class}" style="border-bottom:2px solid {color};">{issue.error_text}</span>')
+                err_text = html_mod.escape(issue.error_text)
+                sugg_text = html_mod.escape(issue.suggestion)
+                html_parts.append(
+                    f'<span class="err {type_class}" style="border-bottom:2px solid {color};">{err_text}'
+                    f'<span class="err-tip">'
+                    f'<span class="tip-type" style="background:{color}20;color:{color};">{issue.error_type}</span><br>'
+                    f'<span class="tip-orig">{err_text}</span> → <span class="tip-sugg">{sugg_text}</span><br>'
+                    f'<span class="tip-conf">置信度: {issue.confidence:.0%}</span>'
+                    f'</span></span>'
+                )
                 last_end = issue.position_end
             if last_end < len(st.session_state.text):
-                html_parts.append(st.session_state.text[last_end:])
+                html_parts.append(html_mod.escape(st.session_state.text[last_end:]))
 
             highlighted_text = "".join(html_parts)
             st.markdown(f'<div class="editor-box">{highlighted_text}</div>', unsafe_allow_html=True)
@@ -304,7 +373,7 @@ def main():
 
             st.markdown("---")
 
-            # 问题列表 - 每个卡片包含信息和按钮
+            # 问题列表 - 卡片内包含信息和按钮
             for issue in st.session_state.issues:
                 if issue.ignored:
                     continue
@@ -312,15 +381,15 @@ def main():
                 color = get_color(issue.error_type)
                 ai_badge = '<span class="ai-badge">AI</span>' if issue.source == "AI" else ""
 
-                with st.container():
+                with st.container(border=True):
                     # 问题信息
                     st.markdown(f"""
-                    <div class="issue-item" style="border-left-color:{color};">
-                        <div style="display:flex;align-items:center;margin-bottom:4px;">
+                    <div class="issue-item" style="border-left:3px solid {color};">
+                        <div class="issue-header">
                             <span class="tag" style="background:{color}20;color:{color};">{issue.error_type}</span>{ai_badge}
                             <span style="color:#999;font-size:11px;margin-left:auto;">第{issue.position}字</span>
                         </div>
-                        <div style="font-size:14px;margin-bottom:4px;">
+                        <div class="issue-body">
                             <span style="color:{color};text-decoration:line-through;">{issue.error_text}</span>
                             <span style="color:#27ae60;margin-left:4px;font-weight:600;">→ {issue.suggestion}</span>
                         </div>
@@ -328,16 +397,16 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # 按钮行
-                    c1, c2 = st.columns(2)
-                    with c1:
+                    # 按钮 - 嵌入卡片内部
+                    bc1, bc2, bc3 = st.columns([5, 1, 1])
+                    with bc1:
                         if st.button("✓ 采纳", key=f"adopt_{issue.id}", use_container_width=True):
                             new_text = st.session_state.text[:issue.position] + issue.suggestion + st.session_state.text[issue.position_end:]
                             st.session_state.text = new_text
                             st.session_state.issues = [i for i in st.session_state.issues if i.id != issue.id]
                             st.rerun()
-                    with c2:
-                        if st.button("✕ 忽略", key=f"ignore_{issue.id}", use_container_width=True):
+                    with bc3:
+                        if st.button("✕", key=f"ignore_{issue.id}", use_container_width=True):
                             issue.ignored = True
                             st.rerun()
 

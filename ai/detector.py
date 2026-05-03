@@ -1,6 +1,6 @@
 """
 AI智能检测模块
-支持 NVIDIA NIM API (OpenAI兼容)
+支持 DeepSeek API (OpenAI兼容)
 """
 from typing import List, Tuple
 import json
@@ -19,11 +19,11 @@ class Issue:
 
 
 class AIDetector:
-    """AI检测器 - 支持NVIDIA NIM API"""
+    """AI检测器 - 支持DeepSeek API"""
 
     def __init__(self, api_key: str = "", base_url: str = ""):
         self.api_key = api_key
-        self.base_url = base_url or "https://integrate.api.nvidia.com/v1"
+        self.base_url = base_url or "https://api.deepseek.com/v1"
         self.client = None
         self.error_msg = ""
 
@@ -69,7 +69,7 @@ class AIDetector:
 """
 
             response = self.client.chat.completions.create(
-                model="meta/llama-3.1-70b-instruct",
+                model="deepseek-chat",
                 messages=[
                     {"role": "system", "content": "你是中文校对助手，只返回JSON数组。"},
                     {"role": "user", "content": prompt}
