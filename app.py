@@ -360,7 +360,7 @@ def main():
                         st.rerun()
 
         elif not st.session_state.checking:
-            st.info("请在左侧输入文本，然后点击"开始检查"按钮")
+            st.info("请在左侧输入文本，然后点击【开始检查】按钮")
 
     # 导出功能
     if export_btn and st.session_state.issues:
