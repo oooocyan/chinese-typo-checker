@@ -214,22 +214,27 @@ def run_local_check(text: str) -> List[Issue]:
     return issues
 
 
-def run_ai_check(text: str) -> List[Issue]:
-    """AI检测"""
+def run_ai_check(text: str) -> tuple:
+    """AI检测，返回(issues, error_msg)"""
     api_key = st.secrets.get("NVIDIA_API_KEY", "")
     base_url = st.secrets.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+
     if not api_key:
-        return []
+        return [], "未配置 NVIDIA_API_KEY，请在 Settings → Secrets 中添加"
 
     detector = AIDetector(api_key, base_url)
     if not detector.is_available():
-        return []
+        return [], detector.get_error() or "AI初始化失败"
 
-    issues = []
-    for issue in detector.detect_batch(text):
-        issues.append(Issue(issue.position, issue.position_end, issue.error_text, issue.error_type, issue.suggestion, issue.confidence, "AI"))
+    issues, error = detector.detect_batch(text)
+    if error:
+        return [], error
 
-    return issues
+    result = []
+    for issue in issues:
+        result.append(Issue(issue.position, issue.position_end, issue.error_text, issue.error_type, issue.suggestion, issue.confidence, "AI"))
+
+    return result, ""
 
 
 def merge_issues(local: List[Issue], ai: List[Issue]) -> List[Issue]:
@@ -279,7 +284,7 @@ def run_ai_polish(text: str) -> str:
 
 def main():
     # 初始化状态
-    for k, v in [("text", ""), ("issues", []), ("checked", False), ("ai_result", ""), ("use_ai", True)]:
+    for k, v in [("text", ""), ("issues", []), ("checked", False), ("ai_result", ""), ("use_ai", True), ("ai_error", "")]:
         if k not in st.session_state:
             st.session_state[k] = v
 
@@ -304,9 +309,16 @@ def main():
 
                 # AI检测
                 ai_issues = []
+                # AI检测
+                ai_issues = []
+                ai_error = ""
                 if st.session_state.use_ai:
                     with st.spinner("AI检测中..."):
-                        ai_issues = run_ai_check(st.session_state.text)
+                        ai_issues, ai_error = run_ai_check(st.session_state.text)
+                    if ai_error:
+                        st.session_state.ai_error = ai_error
+                    else:
+                        st.session_state.ai_error = ""
 
                 # 合并结果
                 st.session_state.issues = merge_issues(local_issues, ai_issues)
@@ -364,6 +376,10 @@ def main():
 
     with col_right:
         st.markdown("**📋 检测结果**")
+
+        # 显示AI错误信息
+        if st.session_state.get("ai_error"):
+            st.error(f"🤖 AI检测失败: {st.session_state.ai_error}")
 
         if st.session_state.issues:
             # 统计

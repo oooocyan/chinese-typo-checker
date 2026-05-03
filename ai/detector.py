@@ -2,7 +2,7 @@
 AI智能检测模块
 支持 NVIDIA NIM API (OpenAI兼容)
 """
-from typing import List
+from typing import List, Tuple
 import json
 
 
@@ -25,6 +25,7 @@ class AIDetector:
         self.api_key = api_key
         self.base_url = base_url or "https://integrate.api.nvidia.com/v1"
         self.client = None
+        self.error_msg = ""
 
         if api_key:
             try:
@@ -33,66 +34,58 @@ class AIDetector:
                     base_url=self.base_url,
                     api_key=api_key
                 )
+            except ImportError:
+                self.error_msg = "未安装openai库，请添加到requirements.txt"
             except Exception as e:
-                print(f"OpenAI初始化失败: {e}")
+                self.error_msg = f"OpenAI初始化失败: {e}"
 
     def is_available(self) -> bool:
         return self.client is not None
 
-    def detect(self, text: str) -> List[Issue]:
-        """使用AI检测文本问题"""
+    def get_error(self) -> str:
+        return self.error_msg
+
+    def detect(self, text: str) -> Tuple[List[Issue], str]:
+        """使用AI检测文本问题，返回(问题列表, 错误信息)"""
         if not self.is_available():
-            return []
+            return [], self.error_msg or "AI未初始化"
 
         try:
-            prompt = f"""你是一位专业的中文文字校对编辑。请仔细检查以下文本中的错误。
+            prompt = f"""请检查以下中文文本中的错误，包括：错别字、标点错误、语法错误、语义问题。
 
 文本：
 {text}
 
-请检查以下类型的错误：
-1. 错别字（同音字、形近字错误，如"在做"应为"再做"、"以经"应为"已经"）
-2. 标点符号错误（中英文标点混用、缺失标点、多余标点）
-3. 语法错误（语病、成分残缺、搭配不当、语序不当）
-4. 语义问题（表达不通顺、歧义、逻辑错误）
-5. 易混淆词（的地得、必须必需、反映反应等）
-
-请以JSON数组格式返回所有发现的错误：
+请直接返回JSON数组格式，不要其他内容：
 [
   {{
-    "error": "错误的原文（必须完全匹配文本中的内容）",
+    "error": "错误原文",
     "suggestion": "修改建议",
-    "type": "错别字/标点/语法/语义",
-    "reason": "简要说明错误原因"
+    "type": "错别字或标点或语法或语义"
   }}
 ]
 
-重要：
-1. 只返回JSON数组，不要任何解释文字
-2. error字段必须完全匹配原文，包括标点符号
-3. 如果没有错误，返回空数组 []
-4. 每个错误都要准确判断类型
+如果没有错误返回 []
 """
 
             response = self.client.chat.completions.create(
-                model="meta/llama-3.1-405b-instruct",
+                model="meta/llama-3.1-70b-instruct",
                 messages=[
-                    {"role": "system", "content": "你是一位专业的中文文字校对编辑，擅长发现各类文字错误。"},
+                    {"role": "system", "content": "你是中文校对助手，只返回JSON数组。"},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
-                max_tokens=3000,
+                temperature=0.2,
+                max_tokens=2000,
             )
 
-            result_text = response.choices[0].message.content
+            result_text = response.choices[0].message.content.strip()
 
             # 提取JSON
             json_start = result_text.find('[')
             json_end = result_text.rfind(']') + 1
 
-            if json_start == -1 or json_end == 0:
-                print(f"未找到JSON: {result_text[:200]}")
-                return []
+            if json_start == -1:
+                return [], f"AI返回格式错误: {result_text[:100]}"
 
             json_str = result_text[json_start:json_end]
             errors = json.loads(json_str)
@@ -104,10 +97,8 @@ class AIDetector:
                 if not error_text:
                     continue
 
-                # 在原文中查找位置
                 pos = text.find(error_text)
                 if pos == -1:
-                    # 尝试去掉首尾空格
                     error_text = error_text.strip()
                     pos = text.find(error_text)
                     if pos == -1:
@@ -123,21 +114,18 @@ class AIDetector:
                 )
                 issues.append(issue)
 
-            return issues
+            return issues, ""
 
         except json.JSONDecodeError as e:
-            print(f"JSON解析错误: {e}")
-            return []
+            return [], f"JSON解析错误: {e}"
         except Exception as e:
-            print(f"AI检测出错: {e}")
-            return []
+            return [], f"AI检测出错: {str(e)}"
 
-    def detect_batch(self, text: str, max_length: int = 1500) -> List[Issue]:
+    def detect_batch(self, text: str, max_length: int = 1500) -> Tuple[List[Issue], str]:
         """分段检测长文本"""
         if len(text) <= max_length:
             return self.detect(text)
 
-        # 分段检测
         all_issues = []
         paragraphs = text.split('\n')
         current_pos = 0
@@ -147,9 +135,10 @@ class AIDetector:
                 current_pos += 1
                 continue
 
-            issues = self.detect(para)
+            issues, error = self.detect(para)
+            if error:
+                return [], error
 
-            # 调整位置偏移
             for issue in issues:
                 issue.position += current_pos
                 issue.position_end += current_pos
@@ -157,4 +146,4 @@ class AIDetector:
             all_issues.extend(issues)
             current_pos += len(para) + 1
 
-        return all_issues
+        return all_issues, ""
